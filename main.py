@@ -32,16 +32,24 @@ def home():
 @app.route('/register', methods=["GET", "POST"])
 def register():
     if request.method == 'POST':
-        new_user = User()
-        hash_and_salted_password = generate_password_hash(
-            request.form.get('password'), method='pbkdf2:sha256', salt_length=8
-        )
-        new_user.email = request.form.get('email')
-        new_user.name = request.form.get('name')
-        new_user.password = hash_and_salted_password
-        db.session.add(new_user)
-        db.session.commit()
-        return redirect(url_for('login'))
+        email = request.form.get('email')
+        value = User.query.filter_by(email=email)
+        if value:
+            flash("you've already signed up with that email, log in instead!")
+            return redirect(url_for('login'))
+        else:
+            new_user = User()
+            hash_and_salted_password = generate_password_hash(
+                request.form.get('password'), method='pbkdf2:sha256', salt_length=8
+            )
+            new_user.email = email
+            new_user.name = request.form.get('name')
+            new_user.password = hash_and_salted_password
+            db.session.add(new_user)
+            db.session.commit()
+            login_user(new_user)
+            return redirect(url_for("secrets"))
+
     return render_template("register.html")
 
 
@@ -49,10 +57,15 @@ def register():
 def login():
     if request.method == 'POST':
         user_ = User.query.filter_by(email=request.form.get('email')).first()
-
-        if user_ and check_password_hash(user_.password, request.form.get('password')):
-            login_user(user_)
-            return redirect(url_for('secrets'))
+        if user_:
+            if user_ and check_password_hash(user_.password, request.form.get('password')):
+                login_user(user_)
+                return redirect(url_for('secrets'))
+            flash('password incorrect please try again')
+            return redirect(url_for('login'))
+        else:
+            flash('that email does not exits, please try again')
+            return redirect(url_for('login'))
     return render_template("login.html")
 
 
