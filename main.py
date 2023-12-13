@@ -9,6 +9,8 @@ app.config['SECRET_KEY'] = 'any-secret-key-you-choose'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
+login_manager = LoginManager(app)
+login_manager.init_app(app)
 
 
 class User(UserMixin, db.Model):
@@ -17,6 +19,10 @@ class User(UserMixin, db.Model):
     password = db.Column(db.String(100))
     name = db.Column(db.String(1000))
 
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
 
 @app.route('/')
 def home():
@@ -35,30 +41,38 @@ def register():
         new_user.password = hash_and_salted_password
         db.session.add(new_user)
         db.session.commit()
-        return redirect(url_for('secrets', name=new_user.name))
+        return redirect(url_for('login'))
     return render_template("register.html")
 
 
-@app.route('/login')
+@app.route('/login', methods=["GET", "POST"])
 def login():
+    if request.method == 'POST':
+        user_ = User.query.filter_by(email=request.form.get('email')).first()
+
+        if user_ and check_password_hash(user_.password, request.form.get('password')):
+            login_user(user_)
+            return redirect(url_for('secrets'))
     return render_template("login.html")
 
 
 @app.route('/secrets')
+@login_required
 def secrets():
-    user_name = request.args.get("name")
-    return render_template("secrets.html", name=user_name)
+    return render_template("secrets.html", name=current_user.name)
 
 
 @app.route('/logout')
+
 def logout():
-    pass
+    logout_user()
+    return redirect(url_for('home'))
 
 
 @app.route('/download')
+@login_required
 def download():
     return send_from_directory('static', path="files/cheat_sheet.pdf")
-
 
 
 if __name__ == "__main__":
